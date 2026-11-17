@@ -43,7 +43,8 @@ svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:n
 #status.bad{color:var(--bad)}
 .rules{color:var(--mute);font-size:.9rem;max-width:70ch}
 .rules b{color:var(--ink)}
-@media print{:root:root:root{--paper:#fff;--ink:#000}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}.bar,.pal,.rules,#status,.sub{display:none}.board{border:0;background:#fff}.bd{stroke:#000!important}.st{fill:#000!important;stroke:#fff!important}}
+.pk{display:none}
+@media print{:root:root:root{--paper:#fff;--ink:#000}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}.bar,.pal,.rules,#status,.sub{display:none}.board{border:0;background:#fff}.bd{stroke:#000!important}.st{fill:#000!important;stroke:#fff!important}.pk{display:grid;grid-template-columns:1fr 2fr;gap:20px;margin-top:16px;color:#000;font-size:12pt;line-height:1.4;break-inside:avoid}.pk h2{font-size:13pt;margin:0 0 6px}.pk p{margin:0 0 8px}.pk ul{list-style:none;margin:0;padding:0}.pk li{margin-bottom:6px;font-weight:700}.pk .sw{display:inline-block;width:20px;height:20px;vertical-align:middle;margin-right:8px;border:1.5px solid #000}}
 </style>
 </head>
 <body>
@@ -66,6 +67,19 @@ svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:n
 </div>
 <div class="pal" id="pal"></div>
 <p class="rules"><b>Rules.</b> Colour every region 1 to 4 so no two regions sharing a border match. Filled regions are given. <b>★ Capitals:</b> the four starred regions are all different. <b>◇ Market towns:</b> the four regions meeting at a diamond are all different. Pick a colour below (or press 1–4, 0 to erase), then tap regions.</p>
+<section class="pk">
+<div><h2>Key</h2><ul>
+<li><span class="sw" style="background:var(--c1)"></span>1 Red</li>
+<li><span class="sw" style="background:var(--c2)"></span>2 Blue</li>
+<li><span class="sw" style="background:var(--c3)"></span>3 Green</li>
+<li><span class="sw" style="background:var(--c4)"></span>4 Gold</li>
+</ul></div>
+<div><h2>How to solve</h2>
+<p>Write 1, 2, 3 or 4 in each empty region (or colour it) so that no two regions sharing a border get the same number. Four is always enough. Regions that are already filled in are given. Each puzzle has exactly one solution.</p>
+<h2>Map features</h2>
+<p><b>★ Capitals:</b> the four starred regions must all be different numbers, even though they do not touch.</p>
+<p><b>◇ Market towns:</b> at every corner marked with a diamond, the four regions meeting there must all be different numbers.</p></div>
+</section>
 </main>
 <script>
 const NAMES=['Red','Blue','Green','Gold'],S=50,M=12;
