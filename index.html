@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Borderline puzzle generator</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2a3844">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700&display=swap">
+<style>
+:root{--bg:#e9eef1;--panel:#fff;--ink:#17232f;--mute:#5d6b77;--line:#c9d3da;--paper:#46586a;--accent:#17232f;--onaccent:#fff;
+--c1:#e4574b;--c2:#4f8fd6;--c3:#5fb36a;--c4:#ebbb3a;--bad:#c4271b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10171d;--panel:#18222b;--ink:#e8eef2;--mute:#93a2ae;--line:#2c3b47;--paper:#2a3844;--accent:#e8eef2;--onaccent:#10171d;--bad:#ff7a6b}}
+:root[data-theme="dark"]{--bg:#10171d;--panel:#18222b;--ink:#e8eef2;--mute:#93a2ae;--line:#2c3b47;--paper:#2a3844;--accent:#e8eef2;--onaccent:#10171d;--bad:#ff7a6b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 "Bricolage Grotesque",system-ui,sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:2rem;margin:0 0 2px;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:0 0 14px;max-width:62ch}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:12px}
+label{display:flex;flex-direction:column;font-size:.8rem;color:var(--mute);gap:3px}
+select,input,button{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:40px}
+input{width:9.5em}
+button{cursor:pointer}
+button.go{background:var(--accent);color:var(--onaccent);border-color:var(--accent);font-weight:700}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--c2);outline-offset:1px}
+.board{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px}
+.meta{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:.85rem;color:var(--mute);margin-bottom:6px}
+svg{display:block;width:100%;height:auto;touch-action:manipulation;user-select:none}
+.cell{cursor:pointer}
+.num{font:700 17px "Bricolage Grotesque",system-ui,sans-serif;text-anchor:middle;dominant-baseline:central;pointer-events:none;fill:#17232f}
+.num.g{font-size:21px}
+.pal{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;align-items:center}
+.pal button{min-width:76px;display:flex;gap:6px;align-items:center;justify-content:center;font-weight:700}
+.pal button[aria-pressed="true"]{outline:3px solid var(--ink);outline-offset:1px}
+.sw{width:14px;height:14px;border-radius:4px;border:1px solid #0004}
+#status{min-height:1.5em;font-weight:700}
+#status.bad{color:var(--bad)}
+.rules{color:var(--mute);font-size:.9rem;max-width:70ch}
+.rules b{color:var(--ink)}
+@media print{:root:root:root{--paper:#fff;--ink:#000}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:#fff}.bar,.pal,.rules,#status,.sub{display:none}.board{border:0;background:#fff}.bd{stroke:#000!important}.st{fill:#000!important;stroke:#fff!important}}
+</style>
+</head>
+<body>
+<main>
+<h1>Borderline</h1>
+<p class="sub">Four-colour map puzzles with capitals and market towns. Each puzzle has exactly one solution.</p>
+<div class="bar">
+<label>Difficulty<select id="diff"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></label>
+<label>Map size<select id="size"><option value="10x7">Small</option><option value="14x10" selected>Standard</option><option value="18x12">Large</option></select></label>
+<label>Seed<input id="seed" spellcheck="false" autocomplete="off"></label>
+<button class="go" id="gen">New puzzle</button>
+<button id="chk">Check</button>
+<button id="clr">Clear</button>
+<button id="sol">Show solution</button>
+<button id="prt">Print</button>
+</div>
+<div class="board">
+<div class="meta"><span id="info"></span><span id="status" role="status"></span></div>
+<svg id="svg" role="img" aria-label="Map puzzle"></svg>
+</div>
+<div class="pal" id="pal"></div>
+<p class="rules"><b>Rules.</b> Colour every region 1 to 4 so no two regions sharing a border match. Filled regions are given. <b>★ Capitals:</b> the four starred regions are all different. <b>◇ Market towns:</b> the four regions meeting at a diamond are all different. Pick a colour below (or press 1–4, 0 to erase), then tap regions.</p>
+</main>
+<script>
+const NAMES=['Red','Blue','Green','Gold'],S=50,M=12;
+const $=id=>document.getElementById(id);
+function hashStr(s){let h=1779033703;for(const ch of s){h=Math.imul(h^ch.charCodeAt(0),3432918353);h=h<<13|h>>>19}return h>>>0}
+function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function shuffle(a,R){for(let i=a.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+// Count solutions of the 4-colouring (givens fixed), stopping at `limit`.
+function solve(N,nb,given,limit,R){
+  const col=given.slice();let count=0,first=null;
+  const ok=(r,c)=>{for(const n of nb[r])if(col[n]===c)return false;return true};
+  (function rec(){
+    let best=-1,bo=null;
+    for(let r=0;r<N;r++)if(!col[r]){
+      const o=[1,2,3,4].filter(c=>ok(r,c));
+      if(!o.length)return;
+      if(!bo||o.length<bo.length){best=r;bo=o;if(o.length===1)break}
+    }
+    if(best<0){count++;if(!first)first=col.slice();return}
+    if(R)shuffle(bo,R);
+    for(const c of bo){col[best]=c;rec();col[best]=0;if(count>=limit)return}
+  })();
+  return{count,first};
+}
+
+function build(seed,diff,W,H){
+  const R=mulberry(hashStr(seed));
+  for(let attempt=0;attempt<60;attempt++){
+    const N=Math.round(W*H*(diff==='hard'?.2:.19));
+    // grow regions from random seed cells
+    const reg=Array(W*H).fill(-1),cells=shuffle([...Array(W*H).keys()],R);
+    const owned=[];for(let r=0;r<N;r++){reg[cells[r]]=r;owned.push(cells[r])}
+    let left=W*H-N,guard=0;
+    while(left>0&&guard++<200000){
+      const c=owned[Math.floor(R()*owned.length)],x=c%W,y=(c/W)|0;
+      const d=[[1,0],[-1,0],[0,1],[0,-1]][Math.floor(R()*4)],nx=x+d[0],ny=y+d[1];
+      if(nx<0||ny<0||nx>=W||ny>=H)continue;
+      const n=ny*W+nx;if(reg[n]>=0)continue;
+      reg[n]=reg[c];owned.push(n);left--;
+    }
+    if(left>0)continue;
+    // adjacency
+    const adj=[...Array(N)].map(()=>new Set());
+    const link=(a,b)=>{if(a!==b){adj[a].add(b);adj[b].add(a)}};
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+      if(x+1<W)link(reg[y*W+x],reg[y*W+x+1]);
+      if(y+1<H)link(reg[y*W+x],reg[(y+1)*W+x]);
+    }
+    // market towns: vertices where four distinct regions meet
+    const cand=[];
+    for(let j=1;j<H;j++)for(let i=1;i<W;i++){
+      const g=[reg[(j-1)*W+i-1],reg[(j-1)*W+i],reg[j*W+i-1],reg[j*W+i]];
+      if(new Set(g).size===4)cand.push({i,j,g});
+    }
+    const diamonds=shuffle(cand,R).slice(0,Math.min(cand.length,3+Math.floor(R()*3)));
+    // capitals: four regions, preferably not touching each other
+    let caps=null;
+    for(let t=0;t<80&&!caps;t++){
+      const c=shuffle([...Array(N).keys()],R).slice(0,4);
+      if(t>=60||c.every((a,k)=>c.every((b,m)=>k===m||!adj[a].has(b))))caps=c;
+    }
+    // constraint graph = borders + same-colour-forbidden extras
+    const nbS=adj.map(s=>new Set(s));
+    const group=g=>g.forEach(a=>g.forEach(b=>{if(a!==b)nbS[a].add(b)}));
+    diamonds.forEach(d=>group(d.g));group(caps);
+    const nb=nbS.map(s=>[...s]);
+    const first=solve(N,nb,Array(N).fill(0),1,R);
+    if(!first.count)continue;
+    const sol=first.first;
+    // remove givens while the solution stays unique
+    const target=diff==='easy'?Math.round(N*.5):diff==='medium'?Math.round(N*.36):0;
+    const given=sol.slice(),order=shuffle([...Array(N).keys()],R);let have=N;
+    for(const r of order){
+      if(have<=target)break;
+      const t=given.slice();t[r]=0;
+      if(solve(N,nb,t,2,null).count===1){given[r]=0;have--}
+    }
+    return{W,H,N,reg,nb,diamonds,caps,sol,given,seed,diff};
+  }
+  return null;
+}
+
+let P=null,user=[],notes=[],brush=1,showSol=false,noteMode=false;
+function newPuzzle(){
+  const [W,H]=$('size').value.split('x').map(Number);
+  let seed=$('seed').value.trim();
+  if(!seed){seed=Math.random().toString(36).slice(2,8);}
+  $('seed').value=seed;
+  P=build(seed+$('size').value+$('diff').value,$('diff').value,W,H);
+  P.seed=seed;user=Array(P.N).fill(0);notes=Array.from({length:P.N},()=>[]);showSol=false;setStatus('');draw();
+}
+function setStatus(t,bad){const s=$('status');s.textContent=t;s.className=bad?'bad':''}
+function colourOf(r){return P.given[r]||(showSol?P.sol[r]:user[r])}
+function conflicts(){
+  const bad=new Set();
+  for(let r=0;r<P.N;r++){const c=colourOf(r);if(c)for(const n of P.nb[r])if(colourOf(n)===c){bad.add(r);bad.add(n)}}
+  return bad;
+}
+function draw(){
+  const {W,H,N,reg}=P,R=mulberry(hashStr(P.seed+'shape'));
+  const pt=[];
+  for(let j=0;j<=H;j++){pt[j]=[];for(let i=0;i<=W;i++){
+    const edge=i===0||j===0||i===W||j===H,jit=edge?0:S*.38;
+    pt[j][i]=[M+i*S+(R()-.5)*jit*2*.7+0,M+j*S+(R()-.5)*jit*2*.7];
+  }}
+  const bad=conflicts(),cellPts=(i,j)=>[pt[j][i],pt[j][i+1],pt[j+1][i+1],pt[j+1][i]];
+  let fills='',lines='',over='',labels='';
+  const cent=[...Array(N)].map(()=>({x:0,y:0,n:0}));
+  for(let j=0;j<H;j++)for(let i=0;i<W;i++){
+    const r=reg[j*W+i],c=colourOf(r),cp=cellPts(i,j),pts=cp.map(p=>p.join(',')).join(' ');
+    const col=c?`var(--c${c})`:'var(--paper)';
+    fills+=`<polygon class="cell" data-r="${r}" points="${pts}" fill="${col}" stroke="${col}" stroke-width=".6"/>`;
+    if(bad.has(r))over+=`<polygon points="${pts}" fill="url(#hatch)" pointer-events="none"/>`;
+    const cx=cp.reduce((a,p)=>a+p[0],0)/4,cy=cp.reduce((a,p)=>a+p[1],0)/4;
+    cent[r].x+=cx;cent[r].y+=cy;cent[r].n++;(cent[r].c=cent[r].c||[]).push([cx,cy]);
+  }
+  let d='';
+  for(let j=0;j<=H;j++)for(let i=0;i<W;i++)if(j===0||j===H||reg[(j-1)*W+i]!==reg[j*W+i])d+=`M${pt[j][i]}L${pt[j][i+1]}`;
+  for(let j=0;j<H;j++)for(let i=0;i<=W;i++)if(i===0||i===W||reg[j*W+i-1]!==reg[j*W+i])d+=`M${pt[j][i]}L${pt[j+1][i]}`;
+  lines=`<path class="bd" d="${d}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" pointer-events="none"/>`;
+  for(let r=0;r<N;r++){
+    const m=cent[r],mx=m.x/m.n,my=m.y/m.n;
+    const [x,y]=m.c.reduce((b,p)=>(Math.hypot(p[0]-mx,p[1]-my)<Math.hypot(b[0]-mx,b[1]-my)?p:b));
+    const c=colourOf(r),star=P.caps.includes(r);
+    if(!c&&notes[r].length)labels+=`<text x="${x}" y="${y+(star?11:0)}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="#fff" stroke="#17232f" stroke-width=".8" paint-order="stroke" letter-spacing="1" pointer-events="none">${notes[r].join('')}</text>`;
+    if(c)labels+=`<text class="num${P.given[r]?' g':''}" x="${x}" y="${y+(star?5:0)}">${c}</text>`;
+    if(star)labels+=`<text class="st" x="${x}" y="${y-(c?9:0)}" text-anchor="middle" dominant-baseline="central" font-size="${c?13:18}" fill="#fff" stroke="#17232f" stroke-width="1" paint-order="stroke" pointer-events="none">★</text>`;
+  }
+  let dm='';
+  for(const v of P.diamonds){const [x,y]=pt[v.j][v.i];dm+=`<rect x="${x-5.5}" y="${y-5.5}" width="11" height="11" transform="rotate(45 ${x} ${y})" fill="#fff" stroke="#17232f" stroke-width="2" pointer-events="none"/>`}
+  const vw=W*S+2*M,vh=H*S+2*M;
+  $('svg').setAttribute('viewBox',`0 0 ${vw} ${vh}`);
+  $('svg').innerHTML=`<defs><pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="7" fill="#17232f" opacity=".35"/></pattern></defs>${fills}${over}${lines}${dm}${labels}`;
+  const gv=P.given.filter(Boolean).length;
+  $('info').textContent=`${P.diff[0].toUpperCase()+P.diff.slice(1)} · ${N} regions · ${gv} given · ${P.diamonds.length} market towns · seed ${P.seed}`.replace(/ · /g,', ');
+}
+function check(){
+  if(showSol)return;
+  const bad=conflicts(),empty=user.filter((c,r)=>!c&&!P.given[r]).length;
+  if(bad.size){setStatus(`${bad.size} regions clash`,true)}
+  else if(empty){setStatus(`No clashes so far, ${empty} regions left`)}
+  else setStatus('Solved. Every region is coloured correctly.');
+}
+$('svg').addEventListener('click',e=>{
+  const t=e.target.closest('[data-r]');if(!t||showSol)return;
+  const r=+t.dataset.r;if(P.given[r])return;
+  if(brush===0){user[r]=0;notes[r]=[]}
+  else if(noteMode){if(user[r])return;const k=notes[r].indexOf(brush);if(k>=0)notes[r].splice(k,1);else notes[r]=[...notes[r],brush].sort()}
+  else{user[r]=user[r]===brush?0:brush;if(user[r])notes[r]=[]}
+  draw();setStatus('');
+  const bad=conflicts();
+  if(!bad.size&&user.every((c,i)=>c||P.given[i]))setStatus('Solved. Every region is coloured correctly.');
+  else if(bad.size)setStatus(`${bad.size} regions clash`,true);
+});
+function setBrush(b){brush=b;[...$('pal').children].slice(0,5).forEach((el,i)=>el.setAttribute('aria-pressed',String(i===(b===0?4:b-1))))}
+function toggleNotes(){noteMode=!noteMode;$('notes').setAttribute('aria-pressed',String(noteMode))}
+for(let c=1;c<=4;c++){const b=document.createElement('button');b.innerHTML=`<span class="sw" style="background:var(--c${c})"></span>${c} ${NAMES[c-1]}`;b.onclick=()=>setBrush(c);$('pal').appendChild(b)}
+{const er=document.createElement('button');er.textContent='Erase';er.onclick=()=>setBrush(0);$('pal').appendChild(er);
+const nb=document.createElement('button');nb.id='notes';nb.textContent='Notes';nb.setAttribute('aria-pressed','false');nb.onclick=toggleNotes;$('pal').appendChild(nb)}
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if('01234'.includes(e.key))setBrush(+e.key);
+  if(e.key==='n')toggleNotes();
+});
+$('gen').onclick=()=>{$('seed').value='';newPuzzle()};
+$('seed').onkeydown=e=>{if(e.key==='Enter')newPuzzle()};
+$('diff').onchange=$('size').onchange=newPuzzle;
+$('chk').onclick=check;
+$('clr').onclick=()=>{user=Array(P.N).fill(0);notes=Array.from({length:P.N},()=>[]);showSol=false;setStatus('');draw()};
+$('sol').onclick=()=>{showSol=!showSol;$('sol').textContent=showSol?'Hide solution':'Show solution';setStatus('');draw()};
+$('prt').onclick=()=>window.print();
+setBrush(1);newPuzzle();
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
